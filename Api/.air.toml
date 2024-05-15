@@ -1,0 +1,12 @@
+air# .air.toml
+[build]
+cmd = "go build -o ./tmp/main ."
+bin = "tmp/main"
+full_bin = "APP_ENV=dev APP_USER=air ./tmp/main"
+
+[watch]
+includes = ["."]
+excludes = ["tmp", "vendor", "frontend/node_modules"]
+
+[log]
+level = "debug"
