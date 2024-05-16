@@ -3,21 +3,25 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	_ "github.com/mattn/go-sqlite3"
 )
 
 type User struct {
-	Id    int    `json:"id"`
-	Name  string `json:"name"`
-	Email string `json:"email"`
+    Id    sql.NullInt64 `json:"id"`
+    Name  string        `json:"name"`
+    Email string        `json:"email"`
 }
 
 func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/users", usersHandler)
-	http.ListenAndServe(":8080", mux)
+	fmt.Println("Server listening on port 3000...")
+	if err := http.ListenAndServe(":3000", mux); err != nil {
+		panic(err)
+	}
 }
 
 func usersHandler(w http.ResponseWriter, r *http.Request) {
@@ -76,11 +80,43 @@ func createUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := db.Exec("INSERT INTO users (id, name, email) VALUES (?, ?, ?)", u.Id, u.Name, u.Email); err != nil {
+	// Insert user data
+	result, err := db.Exec("INSERT INTO users(name, email) VALUES(?, ?)", u.Name, u.Email)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	// Get the auto-incremented ID of the newly created user
+	var lastInsertId int64
+	lastInsertId, err = result.LastInsertId()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	u.Id = sql.NullInt64{Int64: lastInsertId, Valid: true} // Set Id as sql.NullInt64
+
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(u)
+}
+
+func init() {
+	// Connect to the database
+	db, err := sql.Open("sqlite3", "users.db")
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
+
+	// Create the "users" table if it doesn't exist
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS users (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT,
+			email TEXT
+		)
+	`)
+	if err != nil {
+		panic(err)
+	}
 }
